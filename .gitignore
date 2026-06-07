@@ -1,0 +1,10 @@
+# Environment variables
+.env.env
+.env.example
+
+# Node.js
+node_modules
+
+# Next.js
+.next
+next
