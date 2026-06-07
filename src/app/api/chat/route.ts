@@ -3,11 +3,16 @@ import { ChatOpenAI } from "@langchain/openai";
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { MemorySaver } from "@langchain/langgraph";
 
-let agentExecutor: ReturnType<typeof createReactAgent> | null = null;
+const MODELS: Record<string, string> = {
+  "deepseek-chat": "deepseek-chat",
+  "deepseek-reasoner": "deepseek-reasoner",
+  "deepseek-coder": "deepseek-coder",
+};
 
-function getModel() {
+function getModel(modelName: string = "deepseek-chat") {
+  const model = MODELS[modelName] || "deepseek-chat";
   return new ChatOpenAI({
-    model: "deepseek-chat",
+    model,
     temperature: 0.7,
     apiKey: process.env.DEEPSEEK_API_KEY,
     configuration: {
@@ -16,22 +21,25 @@ function getModel() {
   });
 }
 
-async function getAgent() {
-  if (!agentExecutor) {
-    const model = getModel();
+const agents: Map<string, ReturnType<typeof createReactAgent>> = new Map();
+
+async function getAgent(modelName: string = "deepseek-chat") {
+  if (!agents.has(modelName)) {
+    const model = getModel(modelName);
     const checkpointer = new MemorySaver();
-    agentExecutor = createReactAgent({
+    const agent = createReactAgent({
       llm: model,
       tools: [],
       checkpointSaver: checkpointer,
     });
+    agents.set(modelName, agent);
   }
-  return agentExecutor;
+  return agents.get(modelName)!;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, threadId } = await request.json();
+    const { message, threadId, model } = await request.json();
 
     if (!message) {
       return NextResponse.json({ error: "消息不能为空" }, { status: 400 });
@@ -44,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const agent = await getAgent();
+    const agent = await getAgent(model);
     const thread_id = threadId || `thread-${Date.now()}`;
 
     const response = await agent.invoke(
