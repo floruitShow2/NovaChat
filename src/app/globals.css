@@ -1,3 +1,49 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@import 'highlight.js/styles/github-dark.css';
+
+:root {
+  --color-background: #ffffff;
+  --color-foreground: #1f2937;
+}
+
+body {
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+}
+
+/* 代码块样式优化 */
+.prose pre {
+  margin: 0;
+  padding: 1rem;
+}
+
+.prose code {
+  font-family: 'Fira Code', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace;
+}
+
+.prose pre code {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* 确保代码块滚动条样式统一 */
+.prose pre::-webkit-scrollbar {
+  height: 8px;
+}
+
+.prose pre::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.prose pre::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.prose pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}

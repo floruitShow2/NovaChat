@@ -12,6 +12,7 @@ import {
   ChevronsUp,
   ChevronsDown,
 } from 'lucide-react';
+import MarkdownRenderer from './MarkdownRenderer';
 
 export interface ChatMessage {
   id: string;
@@ -62,14 +63,14 @@ function SingleMessage({
           <span className='text-xs text-gray-700 font-medium'>NovaChat</span>
           <span className='text-xs text-gray-400'>{message.timestamp}</span>
         </div>
-        <div className='text-sm text-gray-800 leading-relaxed whitespace-pre-wrap pl-7'>
-          {message.content}
+        <div className='pl-7'>
+          <MarkdownRenderer content={message.content} />
         </div>
         <div className='flex items-center gap-1 mt-2 pl-7 opacity-0 group-hover:opacity-100 transition-opacity'>
           <button
             onClick={() => onCopy(message.content, message.id)}
             className='p-1 text-gray-400 hover:text-gray-600 transition-colors'
-            title='复制'
+            title='复制全部内容'
           >
             {copiedId === message.id ? (
               <Check className='w-3.5 h-3.5 text-green-500' />
