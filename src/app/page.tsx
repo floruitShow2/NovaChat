@@ -3,21 +3,15 @@
 import { useState } from 'react';
 import ChatHeader from '../components/ChatHeader';
 import ChatMessages, { ChatMessage } from '../components/ChatMessages';
-import ChatInput, { ModelOption } from '../components/ChatInput';
-
-export const MODEL_OPTIONS: ModelOption[] = [
-  { value: 'deepseek-chat', label: 'DeepSeek Chat' },
-  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner' },
-  { value: 'deepseek-coder', label: 'DeepSeek Coder' },
-];
+import ChatInput from '../components/ChatInput';
+import { MODEL_OPTIONS } from '../data/modelOptions';
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
-  const [threadId, setThreadId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState('deepseek-chat');
 
-  const handleSend = async (message: string, model: string) => {
+  const handleSend = async (message: string, _model: string) => {
     if (!message.trim() || loading) return;
 
     const now = new Date();
@@ -34,35 +28,64 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat/mock', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           message,
-          threadId,
-          model,
         }),
       });
-
-      const data = await response.json();
-
-      if (data.threadId) {
-        setThreadId(data.threadId);
-      }
 
       const assistantNow = new Date();
       const assistantTimeStr = `${assistantNow.getHours().toString().padStart(2, '0')}:${assistantNow.getMinutes().toString().padStart(2, '0')}`;
 
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: data.response || '抱歉，我无法回答这个问题。',
-        timestamp: assistantTimeStr,
-      };
+      const assistantMessageId = (Date.now() + 1).toString();
 
-      setMessages((prev) => [...prev, assistantMessage]);
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let firstChunk = true;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+
+          if (firstChunk) {
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: assistantMessageId,
+                role: 'assistant' as const,
+                content: chunk,
+                timestamp: assistantTimeStr,
+              },
+            ]);
+            setLoading(false);
+            firstChunk = false;
+          } else {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessageId ? { ...msg, content: msg.content + chunk } : msg
+              )
+            );
+          }
+        }
+      } else {
+        const data = await response.json();
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: assistantMessageId,
+            role: 'assistant' as const,
+            content: data.response || '抱歉，我无法回答这个问题。',
+            timestamp: assistantTimeStr,
+          },
+        ]);
+        setLoading(false);
+      }
     } catch (error) {
       const errorNow = new Date();
       const errorTimeStr = `${errorNow.getHours().toString().padStart(2, '0')}:${errorNow.getMinutes().toString().padStart(2, '0')}`;

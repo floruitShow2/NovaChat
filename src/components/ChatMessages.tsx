@@ -1,7 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Bot, ThumbsUp, ThumbsDown, Copy, Check } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  Bot,
+  ThumbsUp,
+  ThumbsDown,
+  Copy,
+  Check,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUp,
+  ChevronsDown,
+} from 'lucide-react';
 
 export interface ChatMessage {
   id: string;
@@ -81,7 +91,9 @@ function SingleMessage({
 
 export default function ChatMessages({ messages, loading }: ChatMessagesProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const handleCopy = (content: string, id: string) => {
     navigator.clipboard.writeText(content);
@@ -89,9 +101,107 @@ export default function ChatMessages({ messages, loading }: ChatMessagesProps) {
     setTimeout(() => setCopiedId(null), 1500);
   };
 
+  const scrollToBottom = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
+  }, []);
+
+  const scrollToTop = useCallback((behavior: 'smooth' | 'auto' = 'smooth') => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: 0,
+        behavior,
+      });
+    }
+  }, []);
+
+  const scrollToPrevUserMessage = useCallback(() => {
+    const userMessages = messages
+      .map((msg, index) => ({ ...msg, index }))
+      .filter((msg) => msg.role === 'user');
+
+    if (userMessages.length === 0) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const currentScrollTop = container.scrollTop;
+
+    let targetIndex = -1;
+    for (let i = userMessages.length - 1; i >= 0; i--) {
+      const msgRef = messageRefs.current.get(userMessages[i].id);
+      if (msgRef) {
+        const offsetTop = msgRef.offsetTop;
+        if (offsetTop < currentScrollTop - 50) {
+          targetIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (targetIndex >= 0) {
+      const targetMsg = messageRefs.current.get(userMessages[targetIndex].id);
+      if (targetMsg) {
+        targetMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else if (userMessages.length > 0) {
+      const firstMsg = messageRefs.current.get(userMessages[0].id);
+      if (firstMsg) {
+        firstMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [messages]);
+
+  const scrollToNextUserMessage = useCallback(() => {
+    const userMessages = messages
+      .map((msg, index) => ({ ...msg, index }))
+      .filter((msg) => msg.role === 'user');
+
+    if (userMessages.length === 0) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const currentScrollTop = container.scrollTop;
+    const clientHeight = container.clientHeight;
+
+    let targetIndex = -1;
+    for (let i = 0; i < userMessages.length; i++) {
+      const msgRef = messageRefs.current.get(userMessages[i].id);
+      if (msgRef) {
+        const offsetTop = msgRef.offsetTop;
+        if (offsetTop > currentScrollTop + clientHeight - 50) {
+          targetIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (targetIndex >= 0) {
+      const targetMsg = messageRefs.current.get(userMessages[targetIndex].id);
+      if (targetMsg) {
+        targetMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else if (userMessages.length > 0) {
+      const lastMsg = messageRefs.current.get(userMessages[userMessages.length - 1].id);
+      if (lastMsg) {
+        lastMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [messages]);
+
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, loading]);
+    if (messages.length > 0 || loading) {
+      const timer = setTimeout(() => {
+        scrollToBottom('smooth');
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, loading, scrollToBottom]);
 
   const today = new Date().toLocaleDateString('zh-CN', {
     month: 'long',
@@ -111,14 +221,22 @@ export default function ChatMessages({ messages, loading }: ChatMessagesProps) {
   }
 
   return (
-    <div className='flex-1 overflow-y-auto px-6 py-6'>
+    <div className='flex-1 overflow-y-auto px-6 py-6 relative' ref={scrollContainerRef}>
       <div className='max-w-3xl mx-auto space-y-6'>
         <div className='flex justify-center'>
           <span className='text-xs text-gray-400 uppercase tracking-wider'>{today}</span>
         </div>
 
         {messages.map((msg) => (
-          <div key={msg.id} className='group'>
+          <div
+            key={msg.id}
+            className='group'
+            ref={(el) => {
+              if (el) {
+                messageRefs.current.set(msg.id, el);
+              }
+            }}
+          >
             <SingleMessage message={msg} onCopy={handleCopy} copiedId={copiedId} />
           </div>
         ))}
@@ -146,8 +264,46 @@ export default function ChatMessages({ messages, loading }: ChatMessagesProps) {
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
+
+      {messages.length > 0 && (
+        <div className='fixed bottom-24 right-6 flex flex-col gap-2 z-50'>
+          <button
+            onClick={() => scrollToTop()}
+            className='w-9 h-9 bg-gray-800/70 text-white rounded-full shadow-lg hover:bg-gray-700 hover:scale-110 transition-all duration-200 flex items-center justify-center backdrop-blur-sm'
+            aria-label='滚动到顶部'
+            title='滚动到顶部'
+          >
+            <ChevronsUp className='w-4 h-4' />
+          </button>
+          <button
+            onClick={scrollToPrevUserMessage}
+            className='w-9 h-9 bg-gray-800/70 text-white rounded-full shadow-lg hover:bg-gray-700 hover:scale-110 transition-all duration-200 flex items-center justify-center backdrop-blur-sm'
+            aria-label='上一条用户消息'
+            title='上一条用户消息'
+          >
+            <ChevronUp className='w-4 h-4' />
+          </button>
+          <button
+            onClick={scrollToNextUserMessage}
+            className='w-9 h-9 bg-gray-800/70 text-white rounded-full shadow-lg hover:bg-gray-700 hover:scale-110 transition-all duration-200 flex items-center justify-center backdrop-blur-sm'
+            aria-label='下一条用户消息'
+            title='下一条用户消息'
+          >
+            <ChevronDown className='w-4 h-4' />
+          </button>
+          <button
+            onClick={() => {
+              scrollToBottom();
+            }}
+            className='w-9 h-9 bg-blue-500 text-white rounded-full shadow-lg hover:bg-blue-600 hover:scale-110 transition-all duration-200 flex items-center justify-center'
+            aria-label='滚动到底部'
+            title='滚动到底部'
+          >
+            <ChevronsDown className='w-4 h-4' />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
